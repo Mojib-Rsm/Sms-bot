@@ -120,7 +120,7 @@ def start_command(message):
     user_id = message.from_user.id
     set_user_commands(user_id)
     if not is_channel_member(user_id):
-        bot.send_message(message.chat.id, "स्वागतम्!\n\nএই বটটি ব্যবহার করার জন্য আপনাকে অবশ্যই আমাদের চ্যানেলের সদস্য হতে হবে। অনুগ্রহ করে নিচের বাটনে ক্লিক করে চ্যানেলে যোগ দিন এবং তারপর আবার /start কমান্ড দিন।", reply_markup=force_join_keyboard())
+        bot.send_message(message.chat.id, "\n\nএই বটটি ব্যবহার করার জন্য আপনাকে অবশ্যই আমাদের চ্যানেলের সদস্য হতে হবে। অনুগ্রহ করে নিচের বাটনে ক্লিক করে চ্যানেলে যোগ দিন এবং তারপর আবার /start কমান্ড দিন।", reply_markup=force_join_keyboard())
         return
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     if not cursor.fetchone():
