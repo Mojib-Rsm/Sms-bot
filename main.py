@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 import requests
 import os
+import sys
 from flask import Flask, request
 from telebot import types
 
@@ -13,8 +14,9 @@ ADMIN_IDS_STR = os.environ.get("ADMIN_IDS")
 SMS_API_URL = os.environ.get("SMS_API_URL")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
-# --- ভ্যারিয়েবল আছে কিনা তা চেক করা ---
+# --- 필수 (Essential) ভ্যারিয়েবল চেক ---
 if not all([BOT_TOKEN, CHANNEL_ID, ADMIN_IDS_STR, SMS_API_URL, WEBHOOK_URL]):
+    print("FATAL ERROR: A required variable was not found in Railway's 'Variables' tab. Please check for typos or missing variables.", file=sys.stderr)
     raise ValueError("Error: One or more required environment variables are not set in Railway.")
 
 ADMIN_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',')]
@@ -149,7 +151,6 @@ def sms_command(message):
     except requests.exceptions.RequestException:
         bot.reply_to(message, "API সার্ভারের সাথে সংযোগ করা যাচ্ছে না।")
 
-# --- সাধারণ মেসেজ হ্যান্ডলার (অ্যাডমিন ইনপুটের জন্য) ---
 @bot.message_handler(func=lambda message: True)
 def handle_admin_input(message):
     user_id = message.from_user.id
@@ -191,7 +192,6 @@ def handle_admin_input(message):
             bot.send_message(message.chat.id, "❌ ভুল ইউজার আইডি। আবার চেষ্টা করুন।")
 
 
-# --- বাটন ক্লিকের উত্তর ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     user_id = call.from_user.id
@@ -231,7 +231,6 @@ def handle_callback_query(call):
         keyboard.add(types.InlineKeyboardButton("🔙 মূল মেনু", callback_data="main_menu"))
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=history_text, reply_markup=keyboard, parse_mode="Markdown")
         
-    # --- অ্যাডমিন কলব্যাক ---
     elif action == "admin_menu":
         if not is_admin(user_id): return
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="🔑 **অ্যাডমিন প্যানেল**", reply_markup=admin_menu_keyboard(), parse_mode="Markdown")
@@ -262,8 +261,7 @@ def handle_callback_query(call):
             if "message is not modified" in str(e):
                 bot.answer_callback_query(call.id, "Stats is up to date.")
             else:
-                bot.answer_callback_query(call.id, "An error occurred.")
-
+                raise e
 
     elif action == "get_backup":
         if not is_admin(user_id): return
@@ -287,7 +285,6 @@ def handle_callback_query(call):
         bot.send_message(call.message.chat.id, "যে ইউজারের লগ দেখতে চান, তার আইডি দিন।\nযেমন: `12345678`")
 
 
-# --- Flask Webhook সেটআপ ---
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def get_message():
     json_string = request.get_data().decode('utf-8')
