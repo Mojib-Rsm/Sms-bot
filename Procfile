@@ -1,1 +1,1 @@
-python3 bot/main.py
+web: gunicorn main:app
