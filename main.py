@@ -7,18 +7,15 @@ from flask import Flask, request
 from telebot import types
 
 # --- Environment Variables থেকে তথ্য লোড করা ---
-# Railway-তে এই ভ্যারিয়েবলগুলো সেট করতে হবে।
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ADMIN_IDS_STR = os.environ.get("ADMIN_IDS")
 SMS_API_URL = os.environ.get("SMS_API_URL")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
-# আপনার Railway অ্যাপের URL। এটিও Environment Variable হিসেবে সেট করা উচিত।
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL") 
-
-# --- 필수 (Essential) ভ্যারিয়েবল চেক ---
+# --- ভ্যারিয়েবল আছে কিনা তা চেক করা ---
 if not all([BOT_TOKEN, CHANNEL_ID, ADMIN_IDS_STR, SMS_API_URL, WEBHOOK_URL]):
-    raise ValueError("Error: One or more required environment variables are not set.")
+    raise ValueError("Error: One or more required environment variables are not set in Railway.")
 
 ADMIN_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',')]
 
@@ -99,7 +96,6 @@ def start_command(message):
     welcome_text = "স্বাগতম!\n\n➡️ SMS পাঠাতে, নিচের ফরম্যাট অনুসরণ করুন:\n`/sms <নম্বর> <মেসেজ>`\n\nঅন্যান্য অপশনের জন্য নিচের বাটন ব্যবহার করুন। 👇"
     bot.send_message(message.chat.id, welcome_text, reply_markup=main_menu_keyboard(user_id))
 
-
 @bot.message_handler(commands=['sms'])
 def sms_command(message):
     user_id = message.from_user.id
@@ -119,6 +115,7 @@ def sms_command(message):
     
     if not user_data:
         cursor.execute("INSERT INTO users (user_id, last_sms_date) VALUES (?, ?)", (user_id, today))
+        conn.commit()
         sms_sent, bonus_sms = 0, 0
     else:
         if user_data[1] != today:
@@ -157,12 +154,12 @@ def sms_command(message):
 def handle_admin_input(message):
     user_id = message.from_user.id
     cursor.execute("SELECT temp_admin_action FROM users WHERE user_id = ?", (user_id,))
-    action = cursor.fetchone()
+    action_data = cursor.fetchone()
 
-    if not action or not action[0]: return
+    if not action_data or not action_data[0]: return
 
-    action_type = action[0]
-    # ইনপুট পাওয়ার পর temp action ক্লিয়ার করে দেওয়া হয়
+    action_type = action_data[0]
+    
     cursor.execute("UPDATE users SET temp_admin_action = NULL WHERE user_id = ?", (user_id,))
     conn.commit()
 
@@ -240,7 +237,33 @@ def handle_callback_query(call):
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="🔑 **অ্যাডমিন প্যানেল**", reply_markup=admin_menu_keyboard(), parse_mode="Markdown")
 
     elif action == "show_stats" or action == "refresh_stats":
-        # ... (stats কোড আগের মতোই) ...
+        if not is_admin(user_id): return
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM sms_log")
+        total_sms = cursor.fetchone()[0]
+        today = str(datetime.date.today())
+        cursor.execute("SELECT COUNT(*) FROM sms_log WHERE DATE(timestamp) = ?", (today,))
+        today_sms = cursor.fetchone()[0]
+        stats_text = f"📊 **বট পরিসংখ্যান**\n\n" \
+                     f"👨‍👩‍👧‍👦 মোট ব্যবহারকারী: {total_users}\n" \
+                     f"📤 মোট পাঠানো SMS: {total_sms}\n" \
+                     f"📈 আজ পাঠানো SMS: {today_sms}"
+        
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(types.InlineKeyboardButton("🔄 রিফ্রেশ", callback_data="refresh_stats"))
+        keyboard.add(types.InlineKeyboardButton("🔙 অ্যাডমিন মেনু", callback_data="admin_menu"))
+        try:
+            bot.edit_message_text(
+                chat_id=call.message.chat.id, message_id=call.message.message_id,
+                text=stats_text, reply_markup=keyboard, parse_mode="Markdown"
+            )
+        except telebot.apihelper.ApiTelegramException as e:
+            if "message is not modified" in str(e):
+                bot.answer_callback_query(call.id, "Stats is up to date.")
+            else:
+                bot.answer_callback_query(call.id, "An error occurred.")
+
 
     elif action == "get_backup":
         if not is_admin(user_id): return
@@ -255,7 +278,7 @@ def handle_callback_query(call):
         if not is_admin(user_id): return
         cursor.execute("UPDATE users SET temp_admin_action = 'set_bonus' WHERE user_id = ?", (user_id,))
         conn.commit()
-        bot.send_message(call.message.chat.id, "যে ইউজারকে বোনাস দিতে চান, তার আইডি এবং বোনাস পরিমাণ দিন।\nফরম্যাট: `USER_ID <space> AMOUNT`\nযেমন: `12345678 50`")
+        bot.send_message(call.message.chat.id, "যে ইউজারকে বোনাস দিতে চান, তার আইডি এবং বোনাস পরিমাণ দিন।\nফরম্যাট: `USER_ID AMOUNT`\nযেমন: `12345678 50`", parse_mode="Markdown")
 
     elif action == "prompt_user_sms":
         if not is_admin(user_id): return
@@ -276,8 +299,7 @@ def get_message():
 def webhook():
     bot.remove_webhook()
     bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-    return "Webhook set successfully!", 200
+    return "Webhook has been set successfully!", 200
 
 if __name__ == "__main__":
-    setup_database()
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
