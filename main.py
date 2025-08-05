@@ -194,7 +194,7 @@ def sms_command(message):
         bot.reply_to(message, "আপনি এই নম্বরে দিনে সর্বোচ্চ ৪টি SMS পাঠাতে পারবেন।")
         return
     try:
-        response = requests.get(SMS_API_URL, params={'number': phone_number, 'sms': sms_text}, timeout=10)
+        response = requests.get(SMS_API_URL, params={'number': phone_number, 'sms': sms_text}, timeout=30)
         if response.status_code == 200:
             cursor.execute("UPDATE users SET sms_sent = sms_sent + 1 WHERE user_id = ?", (user_id,))
             cursor.execute("INSERT INTO sms_log (user_id, phone_number, message, timestamp) VALUES (?, ?, ?, ?)", (user_id, phone_number, sms_text, datetime.datetime.now().isoformat()))
