@@ -12,7 +12,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "@MrTools_BD")
 ADMIN_IDS_STR = os.environ.get("ADMIN_IDS", "2003008418, 1875687264")
 ADMIN_IDS = [int(admin_id.strip()) for admin_id in ADMIN_IDS_STR.split(',')]
 SMS_API_URL = os.environ.get("SMS_API_URL", "http://209.145.55.60:8000/send")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL") # Railway.app থেকে পাওয়া URL
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL") "https://sms-bot-production.up.railway.app/"
 
 # --- ডাটাবেস সেটআপ ---
 conn = sqlite3.connect('sms_bot.db', check_same_thread=False)
